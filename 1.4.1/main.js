@@ -86,7 +86,7 @@ const config1 = {
     apiUrl: "https://mock-api.shpp.me/vitalii.lypovetsky/users"
 };
 
-DataTable(null);
+DataTable(config1);
 
 const getColorLabel = (color) => {
     return `<div class='color-container'>
