@@ -5,17 +5,22 @@ function DataTable(config, data) {
     body.innerHTML = '';
     const tbl = document.createElement('table');
     tbl.classList.add('datatable');
+
     const tblHead = document.createElement('thead');
     const tblHeadTr = document.createElement('tr');
 
     for (const column of config.columns) {
         const th = document.createElement('th');
         th.innerText = column.title;
-        th.id = column.value;
         tblHeadTr.appendChild(th);
     }
+    const th = document.createElement('th');
+    th.innerText = 'Дії';
+    tblHeadTr.appendChild(th);
+
     tblHead.appendChild(tblHeadTr);
     tbl.appendChild(tblHead);
+
     const btnAdd = document.createElement('button');
     btnAdd.innerText = 'Додати';
     btnAdd.onclick = showDialogAddNewRow(config);
@@ -27,30 +32,41 @@ function DataTable(config, data) {
         fetch(config.apiUrl)
             .then(response => response.json())
             .then(json => Object.entries(json.data).map(([key, value]) => ({id: +key, ...value})))
-            .then(data => buildTable(tbl, config.columns, data))
+            .then(data => buildTable(tbl, config, data))
             .catch(error => console.error(error));
     }
 }
 
-const buildTable = (table, columns, data) => {
+const buildTable = (table, config, data) => {
     for (const row of data) {
-        const tr = document.createElement('tr');
-        tr.id = row.id;
-        for (const column of columns) {
-            const td = document.createElement('td');
-            if (typeof column.value === 'function') {
-                td.innerHTML = column.value(row);
-            } else {
-                td.innerText = row[column.value];
-            }
-            tr.appendChild(td);
-        }
+        const tr = buildRow(config, row);
         table.appendChild(tr);
     }
 }
 
+const buildRow = (config, row) => {
+    const tr = document.createElement('tr');
+    for (const column of config.columns) {
+        const td = document.createElement('td');
+        if (typeof column.value === 'function') {
+            td.innerHTML = column.value(row);
+        } else {
+            td.innerText = row[column.value];
+        }
+        tr.appendChild(td);
+    }
+    const td = document.createElement('td');
+
+    const btnDelete = document.createElement('button');
+    btnDelete.classList.add('delete-btn');
+    btnDelete.innerText = 'Видалити';
+    btnDelete.onclick = deleteRowById(config, row.id);
+    td.appendChild(btnDelete);
+    tr.appendChild(td);
+    return tr;
+}
+
 const showDialogAddNewRow = (config) => {
-    const columns = config.columns;
     const addInput = (owner, input, value, title) => {
         let newInput = document.createElement('input');
         if (input.type === 'select') {
@@ -86,7 +102,6 @@ const showDialogAddNewRow = (config) => {
     }
     return () => {
         const dialogElement = document.createElement('dialog');
-        dialogElement.id = 'modalDialog';
         dialogElement.classList.add('responsive-form');
         const form = document.createElement('form');
         const title = document.createElement('h2');
@@ -94,7 +109,7 @@ const showDialogAddNewRow = (config) => {
         form.appendChild(title);
         form.id = 'addNewElement';
         form.noValidate = true;
-        for (const column of columns) {
+        for (const column of config.columns) {
             if (!column.input) continue;
             if (Array.isArray(column.input)) {
                 for (const input of column.input) {
@@ -116,12 +131,12 @@ const showDialogAddNewRow = (config) => {
         btnSubmit.classList.add('save-btn');
         form.appendChild(btnSubmit);
         form.addEventListener('submit', saveDataBtnClick(config), false);
-        form.addEventListener("keydown", (e) => {
+        dialogElement.appendChild(form);
+        dialogElement.addEventListener("keydown", (e) => {
             if (e.code === "Escape") {
                 closeDialogHandler();
             }
         });
-        dialogElement.appendChild(form);
         document.body.appendChild(dialogElement);
         document.body.classList.add('scroll-lock');
         dialogElement.showModal();
@@ -154,62 +169,60 @@ const getAge = (birthday) => {
     return age + ' ' + getAgeText(age, ['годину', 'години', 'годин']);
 }
 
-const deleteUser = (id) => {
+const deleteRowById = (config, id) => () => {
     if (!confirm('Ви впевнені, що хочете видалити запис?')) {
         return;
     }
-    fetch(`${config1.apiUrl}/${id}`, {
+    fetch(`${config.apiUrl}/${id}`, {
         method: 'DELETE',
     })
         .then(response => response.json())
         .then(json => {
-            if (json.result === 'Deleted!') DataTable(config1);
+            if (json.result === 'Deleted!') DataTable(config);
         })
         .catch(error => console.error(error));
 }
 
-const saveDataBtnClick = (config) => {
-    return (event) => {
-        event.preventDefault();
-        let isValid = true;
-        const inputs = event.target.elements;
-        for (const input of inputs) {
-            if (input.checkValidity()) {
-                input.classList.remove('input-invalid');
-                input.classList.add('input-valid');
-            } else {
-                input.classList.remove('input-valid');
-                input.classList.add('input-invalid');
-                isValid = false;
-            }
+const saveDataBtnClick = (config) => (event) => {
+    event.preventDefault();
+    let isValid = true;
+    const inputs = event.target.elements;
+    for (const input of inputs) {
+        if (input.checkValidity()) {
+            input.classList.remove('input-invalid');
+            input.classList.add('input-valid');
+        } else {
+            input.classList.remove('input-valid');
+            input.classList.add('input-invalid');
+            isValid = false;
         }
-        if (!isValid) return;
-        const data = [...event.target.elements]
-            .filter((element) => element.type !== 'submit' && element.type !== 'button')
-            .reduce((acc, element) => {
-                if (element.type === 'number') {
-                    acc[element.name] = +element.value;
-                } else {
-                    acc[element.name] = element.value;
-                }
-                return acc;
-            }, {});
-        // const formData = new FormData(event.target);
-        // const data = Object.fromEntries(formData.entries());
-        fetch(config.apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        })
-            .then(response => response.json())
-            .then(json => {
-                closeDialogHandler();
-                if (json.result === 'Created!') DataTable(config);
-            })
-            .catch(error => console.error(error));
     }
+    if (!isValid) return;
+    const data = [...event.target.elements]
+        .filter((element) => element.type !== 'submit' && element.type !== 'button')
+        .reduce((acc, element) => {
+            if (element.type === 'number') {
+                acc[element.name] = +element.value;
+            } else {
+                acc[element.name] = element.value;
+            }
+            return acc;
+        }, {});
+    // const formData = new FormData(event.target);
+    // const data = Object.fromEntries(formData.entries());
+    fetch(config.apiUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    })
+        .then(response => response.json())
+        .then(json => {
+            closeDialogHandler();
+            if (json.result === 'Created!') DataTable(config);
+        })
+        .catch(error => console.error(error));
 }
 
 const closeDialogHandler = () => {
@@ -241,10 +254,6 @@ const config1 = {
             title: 'Фото',
             value: (user) => `<img src='${user.avatar}' alt='${user.name} ${user.surname}'/>`,
             input: {type: 'url', name: 'avatar', label: 'URL фото'},
-        },
-        {
-            title: 'Дії',
-            value: (user) => `<button class='delete-btn' onclick='deleteUser(${user.id})'>Видалити</button>`,
         },
     ],
     apiUrl: 'https://mock-api.shpp.me/vitalii.lypovetsky/users',
