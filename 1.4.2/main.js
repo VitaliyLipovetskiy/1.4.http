@@ -5,15 +5,19 @@ function DataTable(config, data) {
     body.innerHTML = '';
     const tbl = document.createElement("table");
     tbl.classList.add('datatable');
+
     const tblHead = document.createElement("thead");
     const tblHeadTr = document.createElement("tr");
 
     for (const column of config.columns) {
         const th = document.createElement("th");
         th.innerText = column.title;
-        th.id = column.value;
         tblHeadTr.appendChild(th);
     }
+    const th = document.createElement('th');
+    th.innerText = 'Дії';
+    tblHeadTr.appendChild(th);
+
     tblHead.appendChild(tblHeadTr);
     tbl.appendChild(tblHead);
     body.appendChild(tbl);
@@ -22,22 +26,21 @@ function DataTable(config, data) {
         fetch(config.apiUrl)
             .then(response => response.json())
             .then(json => Object.entries(json.data).map(([key, value]) => ({id: +key, ...value})))
-            .then(data => buildTable(tbl, config.columns, data))
+            .then(data => buildTable(tbl, config, data))
             .catch(error => console.error(error));
     }
 }
 
-const buildTable = (table, columns, data) => {
+const buildTable = (table, config, data) => {
     for (const row of data) {
-        const tr = getNewTr(row, columns);
+        const tr = buildRow(config, row);
         table.appendChild(tr);
     }
 }
 
-const getNewTr = (row, columns) => {
+const buildRow = (config, row) => {
     const tr = document.createElement("tr");
-    tr.id = row.id;
-    for (const column of columns) {
+    for (const column of config.columns) {
         const td = document.createElement("td");
         if (typeof column.value === 'function') {
             td.innerHTML = column.value(row);
@@ -46,6 +49,14 @@ const getNewTr = (row, columns) => {
         }
         tr.appendChild(td);
     }
+    const td = document.createElement('td');
+
+    const btnDelete = document.createElement('button');
+    btnDelete.classList.add('delete-btn');
+    btnDelete.innerText = 'Видалити';
+    btnDelete.onclick = deleteRowById(config, row.id);
+    td.appendChild(btnDelete);
+    tr.appendChild(td);
     return tr;
 }
 
@@ -75,15 +86,20 @@ const getAge = (birthday) => {
     return age + ' ' + getAgeText(age, ['годину', 'години', 'годин']);
 }
 
-const deleteUser = (id) => {
-    fetch(`${config1.apiUrl}/${id}`, {
-        method: 'DELETE'
-    })
-        .then(response => response.json())
-        .then(json => {
-            if (json.result === 'Deleted!') DataTable(config1);
+const deleteRowById = (config, id) => {
+    return () => {
+        if (!confirm('Ви впевнені, що хочете видалити запис?')) {
+            return;
+        }
+        fetch(`${config.apiUrl}/${id}`, {
+            method: 'DELETE'
         })
-        .catch(error => console.error(error));
+            .then(response => response.json())
+            .then(json => {
+                if (json.result === 'Deleted!') DataTable(config);
+            })
+            .catch(error => console.error(error));
+    }
 }
 
 const config1 = {
@@ -93,7 +109,6 @@ const config1 = {
         {title: 'Прізвище', value: 'surname'},
         {title: 'Вік', value: (user) => getAge(user.birthday)}, // функцію getAge вам потрібно створити
         {title: 'Фото', value: (user) => `<img src="${user.avatar}" alt="${user.name} ${user.surname}"/>`},
-        {title: 'Дії', value: (user) => `<button class='delete-btn' onclick="deleteUser(${user.id})">Видалити</button>`},
     ],
     apiUrl: "https://mock-api.shpp.me/vitalii.lypovetsky/users"
 };
