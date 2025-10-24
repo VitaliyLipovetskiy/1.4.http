@@ -11,7 +11,6 @@ function DataTable(config, data) {
     for (const column of config.columns) {
         const th = document.createElement("th");
         th.innerText = column.title;
-        th.id = column.value;
         tblHeadTr.appendChild(th);
     }
     tblHead.appendChild(tblHeadTr);
@@ -29,14 +28,13 @@ function DataTable(config, data) {
 
 const buildTable = (table, columns, data) => {
     for (const row of data) {
-        const tr = getNewTr(row, columns);
+        const tr = buildRow(row, columns);
         table.appendChild(tr);
     }
 }
 
-const getNewTr = (row, columns) => {
+const buildRow = (row, columns) => {
     const tr = document.createElement("tr");
-    tr.id = row.id;
     for (const column of columns) {
         const td = document.createElement("td");
         if (typeof column.value === 'function') {
